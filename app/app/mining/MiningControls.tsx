@@ -73,16 +73,25 @@ export function MiningControls({
   )
 }
 
-export function MiningCreateControl({ action }: { action: (formData: FormData) => Promise<void> }) {
+type CreateAction = (formData: FormData) => Promise<{ ok?: boolean; error?: string } | void>
+
+export function MiningCreateControl({ action }: { action: CreateAction }) {
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState('')
+  const [ok, setOk] = useState(false)
   return (
     <form action={async (formData) => {
       setPending(true)
       setMessage('')
+      setOk(false)
       try {
-        await action(formData)
-        setMessage('Rig created. Loading your new configuration…')
+        const result = await action(formData)
+        if (result?.ok === false) {
+          setMessage(result.error || 'Unable to create rig.')
+        } else {
+          setOk(true)
+          setMessage('Rig created. Loading your new configuration…')
+        }
       } catch (error) {
         setMessage(error instanceof Error ? error.message : 'Unable to create rig.')
       } finally {
@@ -90,21 +99,28 @@ export function MiningCreateControl({ action }: { action: (formData: FormData) =
       }
     }}>
       <button className="btn" type="submit" disabled={pending}>{pending ? 'Creating rig…' : 'Create NEX-01'}</button>
-      {message && <div className={message.startsWith('Rig created') ? 'notice' : 'error'} style={{marginTop:10}}>{message}</div>}
+      {message && <div className={ok ? 'notice' : 'error'} style={{marginTop:10}}>{message}</div>}
     </form>
   )
 }
 
-export function PrestigeControl({ action, eligible }: { action: (formData: FormData) => Promise<unknown>; eligible: boolean }) {
+export function PrestigeControl({ action, eligible }: { action: (formData: FormData) => Promise<{ ok?: boolean; error?: string } | void>; eligible: boolean }) {
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState('')
+  const [ok, setOk] = useState(false)
   return (
     <form action={async (formData) => {
       setPending(true)
       setMessage('')
+      setOk(false)
       try {
-        await action(formData)
-        setMessage('Ghost Rig created. Your prestige level has been updated.')
+        const result = await action(formData)
+        if (result?.ok === false) {
+          setMessage(result.error || 'Prestige is not available yet.')
+        } else {
+          setOk(true)
+          setMessage('Ghost Rig created. Your prestige level has been updated.')
+        }
       } catch (error) {
         setMessage(error instanceof Error ? error.message : 'Prestige is not available yet.')
       } finally {
@@ -114,7 +130,7 @@ export function PrestigeControl({ action, eligible }: { action: (formData: FormD
       <button className="btn secondary" type="submit" disabled={pending || !eligible} title={eligible ? 'Create Ghost Rig' : 'Reach 100 discovered blocks first'}>
         {pending ? 'Creating…' : eligible ? 'Create Ghost Rig' : 'Need 100 blocks'}
       </button>
-      {message && <div className={message.startsWith('Ghost Rig') ? 'notice' : 'error'} style={{marginTop:10}}>{message}</div>}
+      {message && <div className={ok ? 'notice' : 'error'} style={{marginTop:10}}>{message}</div>}
     </form>
   )
 }
