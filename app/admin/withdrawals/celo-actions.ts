@@ -13,65 +13,39 @@ export async function broadcastWithdrawal(formData: FormData) {
   const admin = await requireAdminIdentity(['admin','super_admin','finance_admin'])
   const withdrawalId = String(formData.get('withdrawalId') ?? '').trim()
   if (!uuid(withdrawalId)) throw new Error('Invalid withdrawal.')
-
   const db = createAdminClient()
   const { data: withdrawal } = await db.from('withdrawals').select('id,amount,token,wallet_address,status,provider_reference').eq('id', withdrawalId).maybeSingle()
   if (!withdrawal) throw new Error('Withdrawal not found.')
   if (withdrawal.status !== 'pending') throw new Error(`Withdrawal is already ${withdrawal.status}.`)
 
-  try {
-    const { txHash } = await broadcastCeloTokenTransfer({
-      token: withdrawal.token,
-      amountMinorUnits: BigInt(withdrawal.amount),
-      destination: withdrawal.wallet_address,
-    })
-    const { error } = await db.rpc('admin_record_withdrawal_result', {
-      p_withdrawal_id: withdrawalId,
-      p_status: 'processing',
-      p_tx_hash: txHash,
-      p_failure_reason: null,
-      p_admin_username: admin.username,
-    })
-    if (error) throw new Error(error.message)
-  } catch (error) {
-    throw new Error(error instanceof Error ? error.message : 'Celo payout failed to broadcast.')
-  }
-
-  revalidatePath('/admin/withdrawals')
-  revalidatePath('/admin')
+  const { txHash } = await broadcastCeloTokenTransfer({ token: withdrawal.token, amountMinorUnits: BigInt(withdrawal.amount), destination: withdrawal.wallet_address })
+  const { error } = await db.rpc('admin_record_withdrawal_result', { p_withdrawal_id: withdrawalId, p_status: 'processing', p_tx_hash: txHash, p_failure_reason: null, p_admin_username: admin.username })
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/withdrawals'); revalidatePath('/admin')
 }
 
 export async function confirmWithdrawal(formData: FormData) {
   const admin = await requireAdminIdentity(['admin','super_admin','finance_admin'])
   const withdrawalId = String(formData.get('withdrawalId') ?? '').trim()
   if (!uuid(withdrawalId)) throw new Error('Invalid withdrawal.')
-
   const db = createAdminClient()
   const { data: withdrawal } = await db.from('withdrawals').select('id,amount,token,wallet_address,status,provider_reference').eq('id', withdrawalId).maybeSingle()
   if (!withdrawal) throw new Error('Withdrawal not found.')
   if (withdrawal.status !== 'processing') throw new Error('Withdrawal must be processing before confirmation.')
   if (!withdrawal.provider_reference || !/^0x[0-9a-fA-F]{64}$/.test(withdrawal.provider_reference)) throw new Error('No valid Celo transaction hash is recorded.')
-
-  try {
-    await confirmCeloTokenTransfer({
-      txHash: withdrawal.provider_reference as `0x${string}`,
-      token: withdrawal.token,
-      destination: withdrawal.wallet_address,
-      expectedAmountMinorUnits: BigInt(withdrawal.amount),
-    })
-  } catch (error) {
-    throw new Error(error instanceof Error ? error.message : 'Celo transaction could not be confirmed.')
-  }
-
-  const { error } = await db.rpc('admin_record_withdrawal_result', {
-    p_withdrawal_id: withdrawalId,
-    p_status: 'completed',
-    p_tx_hash: withdrawal.provider_reference,
-    p_failure_reason: null,
-    p_admin_username: admin.username,
-  })
+  await confirmCeloTokenTransfer({ txHash: withdrawal.provider_reference as `0x${string}`, token: withdrawal.token, destination: withdrawal.wallet_address, expectedAmountMinorUnits: BigInt(withdrawal.amount) })
+  const { error } = await db.rpc('admin_record_withdrawal_result', { p_withdrawal_id: withdrawalId, p_status: 'completed', p_tx_hash: withdrawal.provider_reference, p_failure_reason: null, p_admin_username: admin.username })
   if (error) throw new Error(error.message)
+  revalidatePath('/admin/withdrawals'); revalidatePath('/admin')
+}
 
-  revalidatePath('/admin/withdrawals')
-  revalidatePath('/admin')
+export async function failWithdrawal(formData: FormData) {
+  const admin = await requireAdminIdentity(['admin','super_admin','finance_admin'])
+  const withdrawalId = String(formData.get('withdrawalId') ?? '').trim()
+  const reason = String(formData.get('failureReason') ?? 'Admin rejected payout').trim().slice(0, 500)
+  if (!uuid(withdrawalId)) throw new Error('Invalid withdrawal.')
+  const db = createAdminClient()
+  const { error } = await db.rpc('admin_record_withdrawal_result', { p_withdrawal_id: withdrawalId, p_status: 'failed', p_tx_hash: null, p_failure_reason: reason, p_admin_username: admin.username })
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/withdrawals'); revalidatePath('/admin')
 }
