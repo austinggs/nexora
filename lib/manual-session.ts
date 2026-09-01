@@ -29,8 +29,14 @@ export async function getManualSession() {
   const store = await cookies()
   const raw = store.get(COOKIE)?.value
   if (!raw) return null
-  const [accountId, signature] = raw.split('.')
-  if (!accountId || !signature || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(sign(accountId)))) return null
+  const dot = raw.lastIndexOf('.')
+  if (dot <= 0) return null
+  const accountId = raw.slice(0, dot)
+  const signature = raw.slice(dot + 1)
+  const expected = sign(accountId)
+  const provided = Buffer.from(signature, 'hex')
+  const expectedBuffer = Buffer.from(expected, 'hex')
+  if (provided.length !== expectedBuffer.length || !crypto.timingSafeEqual(provided, expectedBuffer)) return null
   const admin = createAdminClient()
   const { data } = await admin.from('manual_admin_accounts').select('id,username,role,status').eq('id', accountId).maybeSingle()
   if (!data || data.status !== 'active') return null
