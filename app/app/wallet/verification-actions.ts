@@ -67,7 +67,7 @@ export async function verifyWalletChallenge(walletAddress: string, chainId: stri
   const valid = await verifyMessage({ address: address as `0x${string}`, message, signature: signature as `0x${string}` })
   if (!valid) return { ok: false, error: 'Signature verification failed.' }
 
-  const { error } = await db.from('wallet_verifications').update({ status: 'verified', verified_at: new Date().toISOString(), nonce: null }).eq('id', challenge.id)
+  const { error } = await db.from('wallet_verifications').update({ status: 'verified', verified_at: new Date().toISOString() }).eq('id', challenge.id).eq('status', 'pending')
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
