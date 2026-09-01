@@ -1,0 +1,9 @@
+import Link from 'next/link'
+import { Bookmark, MessageCircle, Search, Share2 } from 'lucide-react'
+
+export default function ExplorePage() {
+  return <>
+    <div className="topbar"><div><div className="eyebrow">Community</div><h1>Explore ideas.</h1></div><Link className="btn secondary" href="/app">Back</Link></div>
+    <section className="glass section"><div className="field" style={{marginTop:0}}><label htmlFor="search">Search topics, creators and threads</label><div style={{position:'relative'}}><Search size={17} style={{position:'absolute',left:13,top:13,color:'var(--muted)'}}/><input id="search" placeholder="Try “creator economy”" style={{paddingLeft:40}} /></div></div><div className="feed"><article className="thread"><div className="thread-head"><div className="avatar">AM</div><div><strong>Amina</strong><div className="muted" style={{fontSize:11}}>Creator economy · Verified</div></div></div><div className="thread-title">How should sponsored content prove value?</div><div className="thread-copy">A good reward opportunity should make the sponsor, budget, verification method and payout state easy to understand before you start.</div><div className="thread-meta"><span><MessageCircle size={13}/> 18 replies</span><span><Bookmark size={13}/> Save</span><span><Share2 size={13}/> Share</span></div></article><article className="thread"><div className="thread-head"><div className="avatar">KO</div><div><strong>Kofi</strong><div className="muted" style={{fontSize:11}}>PC builders · Verified</div></div></div><div className="thread-title">Show me your cleanest cable-management build</div><div className="thread-copy">Post a photo, parts list and thermals. The best builds will be featured in the weekly builder digest.</div><div className="thread-meta"><span><MessageCircle size={13}/> 9 replies</span><span><Bookmark size={13}/> Save</span><span><Share2 size={13}/> Share</span></div></article></div></section>
+  </>
+}
