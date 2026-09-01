@@ -1,12 +1,10 @@
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { Cpu, Fan, Flame, Gauge, Sparkles, Zap, Trophy, LibraryBig, Monitor } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createRig, operateRig } from './actions'
 import { RigBuilder } from './RigBuilder'
 import { prestigeRig } from './builder-actions'
-
-const RigViewer = dynamic(() => import('./RigViewer'), { ssr: false, loading: () => <div className="glass section" style={{height:310,display:'grid',placeItems:'center'}}>Loading 3D rig viewer…</div> })
+import RigViewer from './RigViewer'
 
 export default async function MiningPage() {
   const supabase = await createClient()
