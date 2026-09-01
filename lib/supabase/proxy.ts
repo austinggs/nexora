@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function hasManualSession(request: NextRequest) {
+  const raw = request.cookies.get('nexora_manual_session')?.value
+  return Boolean(raw && raw.includes('.') && raw.length > 40)
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
   const supabase = createServerClient(
@@ -20,12 +25,15 @@ export async function updateSession(request: NextRequest) {
   )
 
   const { data: claims } = await supabase.auth.getClaims()
-  const isPrivateRoute = request.nextUrl.pathname === '/app' || request.nextUrl.pathname.startsWith('/app/')
+  const pathname = request.nextUrl.pathname
+  const isAppRoute = pathname === '/app' || pathname.startsWith('/app/')
+  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/')
+  const authenticated = Boolean(claims?.claims) || (isAdminRoute && hasManualSession(request))
 
-  if (isPrivateRoute && !claims?.claims) {
+  if ((isAppRoute || isAdminRoute) && !authenticated) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    url.searchParams.set('next', request.nextUrl.pathname)
+    url.searchParams.set('next', pathname)
     return NextResponse.redirect(url)
   }
 
