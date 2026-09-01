@@ -4,10 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function requestWithdrawal(formData: FormData) {
   const amount = Number(formData.get('amount'))
-  const token = String(formData.get('token') || 'USDC')
+  const token = String(formData.get('token') || 'USDC').toUpperCase()
   const walletAddress = String(formData.get('walletAddress') || '').trim()
-  if (!Number.isInteger(amount) || amount <= 0) return { ok: false, error: 'Enter a valid amount in cents.' }
-  if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) return { ok: false, error: 'Enter a valid Celo wallet address.' }
+  if (!Number.isInteger(amount) || amount <= 0) return { ok: false, error: 'Enter a valid amount in USD cents.' }
+  if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) return { ok: false, error: 'Your verified Celo wallet address is required.' }
+  if (!['USDC','USDT','USDM'].includes(token)) return { ok: false, error: 'Unsupported payout token.' }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
