@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { Cpu, Fan, Flame, Gauge, Sparkles, Zap, Trophy, LibraryBig } from 'lucide-react'
+import { Cpu, Fan, Flame, Gauge, Sparkles, Zap, Trophy, LibraryBig, Monitor } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createRig, operateRig } from './actions'
 import { RigBuilder } from './RigBuilder'
@@ -30,7 +30,7 @@ export default async function MiningPage() {
   const gremlinHits = Number(config.gremlin_hits ?? 0)
 
   return <>
-    <div className="topbar"><div><div className="eyebrow">Mining game</div><h1>Crystal Caverns rig.</h1></div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><Link className="btn secondary" href="/app/mining/catalog"><LibraryBig size={15}/> Hardware catalog</Link><Link className="btn secondary" href="/app">Back</Link></div></div>
+    <div className="topbar"><div><div className="eyebrow">Mining game</div><h1>Crystal Caverns rig.</h1></div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><Link className="btn secondary" href="/app/mining/os"><Monitor size={15}/> Open NEXORA OS</Link><Link className="btn secondary" href="/app/mining/catalog"><LibraryBig size={15}/> Hardware catalog</Link><Link className="btn secondary" href="/app">Back</Link></div></div>
     {!rig ? <section className="glass section"><h3>Set up your first rig</h3><p className="muted">Create the starter NEX-01 rig. Components, power budget, thermal state and mining events remain server-authoritative.</p><form action={createRig}><button className="btn" type="submit">Create NEX-01</button></form></section> : <>
       <div className="grid" style={{marginTop:0}}>
         <section className="glass section"><div className="section-head"><div><div className="eyebrow">Holographic rig</div><h2 style={{margin:'6px 0'}}>{rig.name}</h2></div><Gauge size={20}/></div><RigViewer heat={heat} overclocked={overclocked}/></section>
