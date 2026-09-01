@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { Cpu, Fan, Flame, Gauge, Shield, Sparkles, Zap } from 'lucide-react'
+import { Cpu, Fan, Flame, Gauge, Shield, Sparkles, Zap, Trophy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createRig, operateRig } from './actions'
 import { RigBuilder } from './RigBuilder'
@@ -13,10 +13,11 @@ export default async function MiningPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return <main className="section"><div className="topbar"><div><div className="eyebrow">Mining game</div><h1>Crystal Caverns rig.</h1></div><Link className="btn secondary" href="/login">Sign in</Link></div></main>
 
-  const [{ data: rig }, { data: parts }, { data: owned }] = await Promise.all([
+  const [{ data: rig }, { data: parts }, { data: owned }, { data: leaderboard }] = await Promise.all([
     supabase.from('rigs').select('*').eq('user_id', user.id).order('created_at',{ascending:true}).limit(1).maybeSingle(),
     supabase.from('hardware_catalog').select('id,category,brand,model,virtual_price,compatibility_rank,specification').in('category',['gpu','cpu','cooling','psu']).order('category').order('virtual_price'),
     supabase.from('user_hardware').select('hardware_id,quantity').eq('user_id',user.id),
+    supabase.rpc('get_mining_leaderboard',{p_limit:10}),
   ])
   const config = (rig?.config ?? {}) as Record<string, unknown>
   const heat = Number(config.heat ?? 42)
@@ -25,6 +26,8 @@ export default async function MiningPage() {
   const pendingDust = Number(config.pending_dust ?? 0)
   const power = Number(config.configured_power_w ?? 0)
   const tempLimit = Number(config.gpu_temp_limit_c ?? 90)
+  const gremlins = Number(config.gremlin_count ?? 0)
+  const gremlinHits = Number(config.gremlin_hits ?? 0)
 
   return <>
     <div className="topbar"><div><div className="eyebrow">Mining game</div><h1>Crystal Caverns rig.</h1></div><Link className="btn secondary" href="/app">Back</Link></div>
@@ -35,12 +38,13 @@ export default async function MiningPage() {
           <div className="stats"><div className="mining-stat"><div className="muted">Hash rate</div><div className="value">{(hash/1000000).toFixed(2)} MH/s</div></div><div className="mining-stat"><div className="muted">Thermal</div><div className="value">{heat.toFixed(1)}%</div></div><div className="mining-stat"><div className="muted">Power</div><div className="value">{power}W</div></div></div>
           <div className="muted" style={{fontSize:11}}>GPU thermal ceiling: {tempLimit}°C equivalent · PSU headroom is enforced before configuration.</div>
           <div className="meter" style={{marginTop:14}}><span style={{width:`${Math.min(100,Math.max(0,heat))}%`}} /></div>
-          <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:16}}><form action={operateRig}><input type="hidden" name="action" value="toggle_overclock"/><button className="btn" type="submit">{overclocked ? 'Disable overclock' : 'Overclock +32%'}</button></form><form action={operateRig}><input type="hidden" name="action" value="cool"/><button className="btn secondary" type="submit"><Fan size={15}/> Cool rig</button></form><form action={operateRig}><input type="hidden" name="action" value="tick"/><button className="btn secondary" type="submit">Mine next tick</button></form></div>
-          <div className="notice" style={{marginTop:14}}><Flame size={15}/> Thermal warning begins above 80%. Repeated overloads can trigger gremlins in the full runtime loop.</div>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:16}}><form action={operateRig}><input type="hidden" name="action" value="toggle_overclock"/><button className="btn" type="submit">{overclocked ? 'Disable overclock' : 'Overclock +32%'}</button></form><form action={operateRig}><input type="hidden" name="action" value="cool"/><button className="btn secondary" type="submit"><Fan size={15}/> Cool rig</button></form><form action={operateRig}><input type="hidden" name="action" value="tick"/><button className="btn secondary" type="submit">Mine next tick</button></form>{gremlins>0&&<form action={operateRig}><input type="hidden" name="action" value="defend_gremlin"/><button className="btn" type="submit">Defend gremlin ({gremlinHits}/{gremlins})</button></form>}</div>
+          <div className={heat>80?'error':'notice'} style={{marginTop:14}}><Flame size={15}/> {heat>80?'Thermal warning active. Reduce load or improve cooling.':'Thermal warning begins above 80%.'} {gremlins>0?` Gremlin attack: ${gremlins-gremlinHits} remaining.`:' No gremlin attack active.'}</div>
         </section>
       </div>
       <section className="glass section"><div className="section-head"><div><div className="eyebrow">Build lab</div><h3>Hardware & compatibility</h3></div><Cpu size={17}/></div><p className="muted" style={{fontSize:12}}>Real component power envelopes inform the simulation. The game catalog keeps the specification’s virtual mining values, while PSU sizing and cooling behavior follow realistic constraints.</p><RigBuilder parts={(parts ?? []) as any} owned={(owned ?? []) as any}/></section>
       <div className="grid"><section className="glass section"><div className="section-head"><h3>Dust economy</h3><Sparkles size={17}/></div><div className="value" style={{fontSize:28}}>{pendingDust.toFixed(0)} Dust</div><div className="muted" style={{fontSize:12}}>Virtual mining currency only. It is not presented as a guaranteed real-money return.</div></section><section className="glass section"><div className="section-head"><h3>Prestige</h3><Gauge size={17}/></div><div className="muted" style={{fontSize:12,marginBottom:12}}>Prestige requires 100 discovered blocks. It resets the active rig's block count and creates a persistent Ghost Rig bonus.</div><form action={prestigeRig}><button className="btn secondary" type="submit">Create Ghost Rig</button></form></section></div>
+      <section className="glass section"><div className="section-head"><div><div className="eyebrow">Competition</div><h3>Mining leaderboard</h3></div><Trophy size={17}/></div>{(leaderboard??[]).map((row:any,i:number)=><div className="opp" key={`${row.username}-${i}`}><div><strong>#{i+1} {row.username}</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{(Number(row.hash_rate)/1000000).toFixed(2)} MH/s · {row.blocks} blocks · prestige {row.prestige}</div></div></div>)}</section>
     </>}
   </>
 }
