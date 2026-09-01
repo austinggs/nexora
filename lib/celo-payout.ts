@@ -15,6 +15,18 @@ function env(name: string) {
   return value
 }
 
+export function getPayoutMode() {
+  const mode = (process.env.CELO_PAYOUT_MODE ?? 'disabled').trim().toLowerCase()
+  if (mode === 'live' || mode === 'disabled') return mode
+  throw new Error('CELO_PAYOUT_MODE must be either "live" or "disabled".')
+}
+
+function requireLivePayouts() {
+  if (getPayoutMode() !== 'live') {
+    throw new Error('Celo payouts are currently disabled. Set CELO_PAYOUT_MODE=live only after the Celo server configuration has been completed and tested.')
+  }
+}
+
 function chain() {
   return process.env.CELO_NETWORK === 'alfajores' ? celoAlfajores : celo
 }
@@ -39,6 +51,7 @@ function ledgerCentsToTokenUnits(amountCents: bigint, decimals: number) {
 }
 
 export async function broadcastCeloTokenTransfer(params: { token: string; amountCents: bigint; destination: string }) {
+  requireLivePayouts()
   const destination = params.destination.trim() as Address
   if (!/^0x[0-9a-fA-F]{40}$/.test(destination)) throw new Error('Invalid Celo destination address.')
   if (params.amountCents <= 0n) throw new Error('Payout amount must be positive.')
@@ -48,7 +61,8 @@ export async function broadcastCeloTokenTransfer(params: { token: string; amount
   const account = getPayoutAccount()
   const wallet = createWalletClient({ account, chain: network, transport: http(rpc) })
   const publicClient = createPublicClient({ chain: network, transport: http(rpc) })
-  const contract = getContract({ address: tokenAddress(params.token), abi: ERC20_ABI, client: { public: publicClient, wallet } })
+  const address = tokenAddress(params.token)
+  const contract = getContract({ address, abi: ERC20_ABI, client: { public: publicClient, wallet } })
   const decimals = Number(await contract.read.decimals())
   const tokenUnits = ledgerCentsToTokenUnits(params.amountCents, decimals)
   const payoutBalance = await contract.read.balanceOf([account.address])
@@ -58,6 +72,7 @@ export async function broadcastCeloTokenTransfer(params: { token: string; amount
 }
 
 export async function confirmCeloTokenTransfer(params: { txHash: Hash; token: string; destination: string; amountCents: bigint }) {
+  requireLivePayouts()
   const rpc = env('CELO_RPC_URL')
   const network = chain()
   const destination = params.destination.toLowerCase()
