@@ -18,6 +18,16 @@ export async function updateSession(request: NextRequest) {
       },
     }
   )
-  await supabase.auth.getClaims()
+
+  const { data: claims } = await supabase.auth.getClaims()
+  const isPrivateRoute = request.nextUrl.pathname === '/app' || request.nextUrl.pathname.startsWith('/app/')
+
+  if (isPrivateRoute && !claims?.claims) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.searchParams.set('next', request.nextUrl.pathname)
+    return NextResponse.redirect(url)
+  }
+
   return response
 }
