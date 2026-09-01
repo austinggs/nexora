@@ -15,15 +15,17 @@ export async function purchaseHardware(formData: FormData) {
 }
 
 export async function configureRig(formData: FormData) {
-  const fields = ['gpuId','cpuId','coolingId','psuId']
+  const fields = ['gpuId','cpuId','motherboardId','ramId','coolingId','psuId']
   const values = Object.fromEntries(fields.map(key => [key, String(formData.get(key) ?? '')]))
   if (Object.values(values).some(v => !v)) return { ok: false, error: 'Select every required component.' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Please sign in.' }
-  const { error } = await supabase.rpc('configure_my_rig', {
+  const { error } = await supabase.rpc('configure_my_rig_full', {
     p_gpu_id: values.gpuId,
     p_cpu_id: values.cpuId,
+    p_motherboard_id: values.motherboardId,
+    p_ram_id: values.ramId,
     p_cooling_id: values.coolingId,
     p_psu_id: values.psuId,
   })
