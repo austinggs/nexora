@@ -1,9 +1,12 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
 
-export async function startOpportunity(opportunityId: string) {
+export async function startOpportunity(formData: FormData) {
+  const opportunityId = String(formData.get('opportunityId') ?? '')
+  if (!opportunityId) return { ok: false, error: 'Missing opportunity.' }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Please sign in.' }
