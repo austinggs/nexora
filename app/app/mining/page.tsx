@@ -15,7 +15,7 @@ export default async function MiningPage() {
 
   const [{ data: rig }, { data: parts }, { data: owned }, { data: leaderboard }] = await Promise.all([
     supabase.from('rigs').select('*').eq('user_id', user.id).order('created_at',{ascending:true}).limit(1).maybeSingle(),
-    supabase.from('hardware_catalog').select('id,category,brand,model,virtual_price,compatibility_rank,specification').in('category',['gpu','cpu','motherboard','ram','cooling','cooler','psu']).order('category').order('virtual_price'),
+    supabase.from('hardware_catalog').select('id,category,brand,model,virtual_price,compatibility_rank,specification').in('category',['gpu','cpu','motherboard','ram','cooling','cooler','psu','riser']).order('category').order('virtual_price'),
     supabase.from('user_hardware').select('hardware_id,quantity').eq('user_id',user.id),
     supabase.rpc('get_mining_leaderboard',{p_limit:10}),
   ])
