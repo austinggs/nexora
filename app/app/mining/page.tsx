@@ -1,30 +1,46 @@
 import Link from 'next/link'
-import { Cpu, Fan, Flame, Gauge, Shield, Sparkles } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import { Cpu, Fan, Flame, Gauge, Shield, Sparkles, Zap } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createRig, operateRig } from './actions'
+import { RigBuilder } from './RigBuilder'
+import { prestigeRig } from './builder-actions'
+
+const RigViewer = dynamic(() => import('./RigViewer'), { ssr: false, loading: () => <div className="glass section" style={{height:310,display:'grid',placeItems:'center'}}>Loading 3D rig viewer…</div> })
 
 export default async function MiningPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
   if (!user) return <main className="section"><div className="topbar"><div><div className="eyebrow">Mining game</div><h1>Crystal Caverns rig.</h1></div><Link className="btn secondary" href="/login">Sign in</Link></div></main>
 
-  const { data: rig } = await supabase.from('rigs').select('*').eq('user_id', user.id).order('created_at',{ascending:true}).limit(1).maybeSingle()
+  const [{ data: rig }, { data: parts }, { data: owned }] = await Promise.all([
+    supabase.from('rigs').select('*').eq('user_id', user.id).order('created_at',{ascending:true}).limit(1).maybeSingle(),
+    supabase.from('hardware_catalog').select('id,category,brand,model,virtual_price,compatibility_rank,specification').in('category',['gpu','cpu','cooling','psu']).order('category').order('virtual_price'),
+    supabase.from('user_hardware').select('hardware_id,quantity').eq('user_id',user.id),
+  ])
   const config = (rig?.config ?? {}) as Record<string, unknown>
   const heat = Number(config.heat ?? 42)
   const overclocked = Boolean(config.overclocked ?? false)
-  const hash = Number(rig?.current_hash_rate ?? 1200000)
+  const hash = Number(rig?.current_hash_rate ?? 0)
   const pendingDust = Number(config.pending_dust ?? 0)
+  const power = Number(config.configured_power_w ?? 0)
+  const tempLimit = Number(config.gpu_temp_limit_c ?? 90)
 
   return <>
     <div className="topbar"><div><div className="eyebrow">Mining game</div><h1>Crystal Caverns rig.</h1></div><Link className="btn secondary" href="/app">Back</Link></div>
-    {!rig ? <section className="glass section"><h3>Set up your first rig</h3><p className="muted">Create the starter NEX-01 rig and keep all simulation state in Supabase.</p><form action={createRig}><button className="btn" type="submit">Create NEX-01</button></form></section> : <>
-      <section className="glass mining-card" style={{marginTop:0}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div className="eyebrow">Server-authoritative simulation</div><h2 style={{margin:'7px 0'}}>{rig.name} · {overclocked ? 'Overclocked' : 'Stable'}</h2><div className="muted" style={{fontSize:13}}>{rig.gpu_brand.toUpperCase()} {rig.gpu_model} · {rig.cpu_brand.toUpperCase()} {rig.cpu_model} · {rig.ram_type ?? 'RAM'} · {rig.cooling_unit.toUpperCase()}</div></div><Gauge size={28}/></div>
-        <div className="stats"><div className="mining-stat"><div className="muted">Hash rate</div><div className="value">{(hash/1000000).toFixed(2)} MH/s</div></div><div className="mining-stat"><div className="muted">Thermal</div><div className="value">{heat.toFixed(0)}%</div></div><div className="mining-stat"><div className="muted">Pending Dust</div><div className="value">{pendingDust.toFixed(1)}</div></div></div>
-        <div className="meter"><span style={{width:`${Math.min(100,Math.max(0,heat))}%`}} /></div>
-        <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:18}}><form action={operateRig}><input type="hidden" name="action" value="toggle_overclock"/><button className="btn" type="submit">{overclocked ? 'Disable overclock' : 'Overclock +32%'}</button></form><form action={operateRig}><input type="hidden" name="action" value="cool"/><button className="btn secondary" type="submit"><Fan size={15} style={{verticalAlign:'middle'}}/> Cool rig</button></form><form action={operateRig}><input type="hidden" name="action" value="tick"/><button className="btn secondary" type="submit">Mine next tick</button></form></div>
-      </section>
-      <div className="grid" style={{marginTop:18}}><section className="glass section"><div className="section-head"><h3>Hardware</h3><Cpu size={17}/></div>{[['GPU',`${rig.gpu_brand} ${rig.gpu_model}`,`${(hash/1000000).toFixed(2)} MH/s`],['CPU',`${rig.cpu_brand} ${rig.cpu_model}`,'compatible'],['Cooling',rig.cooling_unit.toUpperCase(),'server tracked'],['PSU',`${rig.psu_capacity ?? '—'}W`,'stable headroom']].map(([a,b,c])=><div className="opp" key={a}><div><strong>{a}</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{b}</div></div><span className="muted" style={{fontSize:12}}>{c}</span></div>)}</section><section className="glass section"><div className="section-head"><h3>Runtime events</h3><Flame size={17}/></div><div className="notice"><Shield size={15}/> Thermal warnings trigger above 80%.</div><div style={{display:'grid',gap:12,marginTop:16}}><div className="muted" style={{fontSize:12}}><Sparkles size={14}/> {heat >= 80 ? 'Thermal warning active.' : 'No gremlin attack active.'}</div><div className="muted" style={{fontSize:12}}>Block discovery is simulated server-side.</div><div className="muted" style={{fontSize:12}}>Prestige can later create a persistent Ghost Rig bonus.</div></div></section></div>
+    {!rig ? <section className="glass section"><h3>Set up your first rig</h3><p className="muted">Create the starter NEX-01 rig. Components, power budget, thermal state and mining events remain server-authoritative.</p><form action={createRig}><button className="btn" type="submit">Create NEX-01</button></form></section> : <>
+      <div className="grid" style={{marginTop:0}}>
+        <section className="glass section"><div className="section-head"><div><div className="eyebrow">Holographic rig</div><h2 style={{margin:'6px 0'}}>{rig.name}</h2></div><Gauge size={20}/></div><RigViewer heat={heat} overclocked={overclocked}/></section>
+        <section className="glass section"><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div className="eyebrow">Server-authoritative simulation</div><h3 style={{margin:'6px 0'}}>{overclocked ? 'Overclocked' : 'Stable load'}</h3><div className="muted" style={{fontSize:12}}>{rig.gpu_brand.toUpperCase()} {rig.gpu_model} · {rig.cpu_brand.toUpperCase()} {rig.cpu_model}</div></div><Zap size={18}/></div>
+          <div className="stats"><div className="mining-stat"><div className="muted">Hash rate</div><div className="value">{(hash/1000000).toFixed(2)} MH/s</div></div><div className="mining-stat"><div className="muted">Thermal</div><div className="value">{heat.toFixed(1)}%</div></div><div className="mining-stat"><div className="muted">Power</div><div className="value">{power}W</div></div></div>
+          <div className="muted" style={{fontSize:11}}>GPU thermal ceiling: {tempLimit}°C equivalent · PSU headroom is enforced before configuration.</div>
+          <div className="meter" style={{marginTop:14}}><span style={{width:`${Math.min(100,Math.max(0,heat))}%`}} /></div>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:16}}><form action={operateRig}><input type="hidden" name="action" value="toggle_overclock"/><button className="btn" type="submit">{overclocked ? 'Disable overclock' : 'Overclock +32%'}</button></form><form action={operateRig}><input type="hidden" name="action" value="cool"/><button className="btn secondary" type="submit"><Fan size={15}/> Cool rig</button></form><form action={operateRig}><input type="hidden" name="action" value="tick"/><button className="btn secondary" type="submit">Mine next tick</button></form></div>
+          <div className="notice" style={{marginTop:14}}><Flame size={15}/> Thermal warning begins above 80%. Repeated overloads can trigger gremlins in the full runtime loop.</div>
+        </section>
+      </div>
+      <section className="glass section"><div className="section-head"><div><div className="eyebrow">Build lab</div><h3>Hardware & compatibility</h3></div><Cpu size={17}/></div><p className="muted" style={{fontSize:12}}>Real component power envelopes inform the simulation. The game catalog keeps the specification’s virtual mining values, while PSU sizing and cooling behavior follow realistic constraints.</p><RigBuilder parts={(parts ?? []) as any} owned={(owned ?? []) as any}/></section>
+      <div className="grid"><section className="glass section"><div className="section-head"><h3>Dust economy</h3><Sparkles size={17}/></div><div className="value" style={{fontSize:28}}>{pendingDust.toFixed(0)} Dust</div><div className="muted" style={{fontSize:12}}>Virtual mining currency only. It is not presented as a guaranteed real-money return.</div></section><section className="glass section"><div className="section-head"><h3>Prestige</h3><Gauge size={17}/></div><div className="muted" style={{fontSize:12,marginBottom:12}}>Prestige requires 100 discovered blocks. It resets the active rig's block count and creates a persistent Ghost Rig bonus.</div><form action={prestigeRig}><button className="btn secondary" type="submit">Create Ghost Rig</button></form></section></div>
     </>}
   </>
 }
