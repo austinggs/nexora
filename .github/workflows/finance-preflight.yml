@@ -1,0 +1,21 @@
+name: Finance Preflight
+
+on:
+  pull_request:
+  push:
+    branches: [main, build/nexora-mvp]
+
+jobs:
+  finance-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify no payout secrets are required client-side
+        run: |
+          test -f scripts/local-finance-check.mjs
+          node --check scripts/local-finance-check.mjs
+          grep -R "SERVICE_ROLE\|PRIVATE_KEY\|MINIPAY_SECRET\|WEBHOOK_SECRET" app lib components 2>/dev/null && exit 1 || true
+          echo "Finance preflight source checks passed."
