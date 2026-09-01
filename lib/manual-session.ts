@@ -15,14 +15,22 @@ function sign(accountId: string) {
   return crypto.createHmac('sha256', secret()).update(accountId).digest('hex')
 }
 
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+  maxAge,
+}
+
 export async function setManualSession(accountId: string) {
   const store = await cookies()
-  store.set(COOKIE, `${accountId}.${sign(accountId)}`, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge })
+  store.set(COOKIE, `${accountId}.${sign(accountId)}`, cookieOptions)
 }
 
 export async function clearManualSession() {
   const store = await cookies()
-  store.set(COOKIE, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 })
+  store.set(COOKIE, '', { ...cookieOptions, maxAge: 0 })
 }
 
 export async function getManualSession() {
