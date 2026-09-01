@@ -1,0 +1,1 @@
+Delivery status: GitHub branch ready. Vercel team is connected but has no existing project, so the repository is configured for import/automatic Git deployments rather than an unverified deployment claim.
