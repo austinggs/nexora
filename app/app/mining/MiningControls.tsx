@@ -16,52 +16,56 @@ export function MiningControls({
   gremlins: number
   gremlinHits: number
 }) {
+  const [pending, setPending] = useState(false)
+  const [message, setMessage] = useState('')
   const [result, runAction] = useActionState(async (_previous: string, formData: FormData) => {
-    const response = await action(formData)
-    return response?.ok === false ? (response.error || 'Mining action failed.') : 'updated'
+    setPending(true)
+    setMessage('')
+    try {
+      const response = await action(formData)
+      const next = response?.ok === false ? (response.error || 'Mining action failed.') : 'Rig state updated.'
+      setMessage(next)
+      return next
+    } catch (error) {
+      const next = error instanceof Error ? error.message : 'Mining action failed.'
+      setMessage(next)
+      return next
+    } finally {
+      setPending(false)
+    }
   }, '')
-  const [pendingAction, setPendingAction] = useState('')
-
-  const submit = (name: string) => (event: React.FormEvent<HTMLFormElement>) => {
-    setPendingAction(name)
-    const form = event.currentTarget
-    queueMicrotask(() => form.requestSubmit())
-  }
-
-  const busy = pendingAction !== ''
-  const feedback = result === 'updated' ? 'Rig state updated.' : result
 
   return (
     <div>
       <div className="mining-controls" aria-label="Mining controls">
-        <form action={runAction} onSubmit={submit('toggle_overclock')}>
+        <form action={runAction}>
           <input type="hidden" name="action" value="toggle_overclock" />
-          <button className="btn" type="submit" disabled={busy}>
-            <Zap size={15} aria-hidden="true" />{overclocked ? 'Disable overclock' : 'Overclock +32%'}
+          <button className="btn" type="submit" disabled={pending}>
+            <Zap size={15} aria-hidden="true" />{pending ? 'Working…' : overclocked ? 'Disable overclock' : 'Overclock +32%'}
           </button>
         </form>
-        <form action={runAction} onSubmit={submit('cool')}>
+        <form action={runAction}>
           <input type="hidden" name="action" value="cool" />
-          <button className="btn secondary" type="submit" disabled={busy}>
+          <button className="btn secondary" type="submit" disabled={pending}>
             <Fan size={15} aria-hidden="true" />Cool rig
           </button>
         </form>
-        <form action={runAction} onSubmit={submit('tick')}>
+        <form action={runAction}>
           <input type="hidden" name="action" value="tick" />
-          <button className="btn secondary" type="submit" disabled={busy}>
+          <button className="btn secondary" type="submit" disabled={pending}>
             <Gauge size={15} aria-hidden="true" />Mine next tick
           </button>
         </form>
         {gremlins > 0 && (
-          <form action={runAction} onSubmit={submit('defend_gremlin')}>
+          <form action={runAction}>
             <input type="hidden" name="action" value="defend_gremlin" />
-            <button className="btn" type="submit" disabled={busy}>
+            <button className="btn" type="submit" disabled={pending}>
               Defend gremlin ({gremlinHits}/{gremlins})
             </button>
           </form>
         )}
       </div>
-      {feedback && <div className={result && result !== 'updated' ? 'error' : 'notice'} style={{marginTop:10}}>{feedback}</div>}
+      {message && <div className={result && result !== 'Rig state updated.' ? 'error' : 'notice'} style={{marginTop:10}}>{message}</div>}
       <div className="muted" style={{fontSize:11,marginTop:10}}>
         <Flame size={13} aria-hidden="true" /> Changes are validated and persisted by the NEXORA server.
       </div>
