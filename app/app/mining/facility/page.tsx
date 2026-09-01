@@ -12,12 +12,13 @@ export default async function FacilityPage() {
     supabase.from('rigs').select('id,name').eq('user_id',user.id).order('created_at',{ascending:true}).limit(1).maybeSingle(),
   ])
   const evaluation = rig ? await supabase.rpc('evaluate_rig_facility',{p_rig_id:rig.id}) : { data:null }
+  const saveFacilityAction = async (formData: FormData) => { 'use server'; await saveFacility(formData) }
 
   return <>
     <div className="topbar"><div><div className="eyebrow">Crystal Caverns / Facility</div><h1>Power & thermal environment.</h1><div className="muted">Model the room before you push the rig.</div></div><Link className="btn secondary" href="/app/mining">Back to mining</Link></div>
     <div className="grid">
       <section className="glass section"><div className="section-head"><h3>Facility configuration</h3><span className="muted">server validated</span></div>
-        <form action={saveFacility} style={{display:'grid',gap:12}}>
+        <form action={saveFacilityAction} style={{display:'grid',gap:12}}>
           <label>Voltage<select name="voltage" defaultValue={String(facility?.voltage_v ?? 230)}><option value="120">120 V</option><option value="230">230 V</option><option value="240">240 V</option><option value="380">380 V</option><option value="400">400 V</option><option value="415">415 V</option></select></label>
           <label>Phase<select name="phase" defaultValue={facility?.phase ?? 'single'}><option value="single">Single phase</option><option value="three">Three phase</option></select></label>
           <label>Service / breaker amps<input type="number" min="1" name="amps" defaultValue={facility?.service_amps ?? 16}/></label>
