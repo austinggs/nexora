@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { BadgeCheck, Clock3, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { startOpportunity } from './actions'
+import { OpportunityActions } from './OpportunityActions'
 
 export default async function EarnPage() {
   const supabase = await createClient()
@@ -12,8 +12,8 @@ export default async function EarnPage() {
 
   return <>
     <div className="topbar"><div><div className="eyebrow">Rewards</div><h1>Earn with clarity.</h1></div><Link className="btn secondary" href="/app">Back</Link></div>
-    <section className="glass section"><div className="notice"><ShieldCheck size={16} style={{verticalAlign:'middle'}}/> Every opportunity is labeled by verification state. Rewards are stored server-side and are not created by the browser.</div><div style={{display:'grid',gap:10,marginTop:18}}>
-      {(opportunities ?? []).map((item) => { const status = completionMap.get(item.id); return <article className="thread" key={item.id}><div style={{display:'flex',justifyContent:'space-between',gap:14,alignItems:'center'}}><div><div style={{display:'flex',gap:8,alignItems:'center'}}><BadgeCheck size={16} color="var(--accent-2)"/><strong>{item.title}</strong></div><div className="muted" style={{fontSize:12,marginTop:8}}><Clock3 size={13} style={{verticalAlign:'middle'}}/> {item.duration_minutes} min · {item.sponsor_name} · {item.verification_required ? 'Verification required' : 'Standard'}</div></div><div className="reward">+${(Number(item.reward_amount)/100).toFixed(2)}</div></div><p className="thread-copy">{item.description}</p>{user ? (status ? <div className="muted" style={{fontSize:12}}>Status: {status}</div> : <form action={startOpportunity}><input type="hidden" name="opportunityId" value={item.id}/><button className="btn" type="submit" style={{marginTop:6}}>Start opportunity</button></form>) : <Link className="btn" href="/login" style={{display:'inline-flex',marginTop:6}}>Sign in to start</Link>}</article> })}
+    <section className="glass section"><div className="notice"><ShieldCheck size={16} style={{verticalAlign:'middle'}}/> Verification and rewards are server-authoritative. Your browser cannot mint or credit funds.</div><div style={{display:'grid',gap:10,marginTop:18}}>
+      {(opportunities ?? []).map((item) => { const status = completionMap.get(item.id); const requiredSeconds = Math.max(5, Math.floor(item.duration_minutes * 60 / 2)); return <article className="thread" key={item.id}><div style={{display:'flex',justifyContent:'space-between',gap:14,alignItems:'center'}}><div><div style={{display:'flex',gap:8,alignItems:'center'}}><BadgeCheck size={16} color="var(--accent-2)"/><strong>{item.title}</strong></div><div className="muted" style={{fontSize:12,marginTop:8}}><Clock3 size={13} style={{verticalAlign:'middle'}}/> {item.duration_minutes} min · {item.sponsor_name} · {item.verification_required ? `Verification: ${requiredSeconds}s minimum dwell` : 'Standard'}</div></div><div className="reward">+${(Number(item.reward_amount)/100).toFixed(2)}</div></div><p className="thread-copy">{item.description}</p>{user ? <OpportunityActions opportunityId={item.id} status={status} requiredSeconds={requiredSeconds} /> : <Link className="btn" href="/login" style={{display:'inline-flex',marginTop:6}}>Sign in to start</Link>}</article> })}
       {(opportunities ?? []).length === 0 && <div className="muted">No verified opportunities are active right now.</div>}
     </div></section>
   </>
