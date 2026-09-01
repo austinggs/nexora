@@ -34,6 +34,32 @@ export async function configureRig(formData: FormData) {
   return { ok: true }
 }
 
+export async function configureMultiGpuRig(formData: FormData) {
+  const gpuIds = String(formData.get('gpuIds') ?? '').split(',').map(x => x.trim()).filter(Boolean)
+  const pCpu = String(formData.get('cpuId') ?? '')
+  const pBoard = String(formData.get('motherboardId') ?? '')
+  const pRam = String(formData.get('ramId') ?? '')
+  const pCooling = String(formData.get('coolingId') ?? '')
+  const psuIds = String(formData.get('psuIds') ?? '').split(',').map(x => x.trim()).filter(Boolean)
+  const riserIds = String(formData.get('riserIds') ?? '').split(',').map(x => x.trim()).filter(Boolean)
+  if (!gpuIds.length || !pCpu || !pBoard || !pRam || !pCooling || !psuIds.length) return { ok: false, error: 'Select GPUs, CPU, motherboard, RAM, cooling and at least one PSU.' }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Please sign in.' }
+  const { error } = await supabase.rpc('configure_multi_gpu_rig', {
+    p_gpu_ids: gpuIds,
+    p_cpu_id: pCpu,
+    p_motherboard_id: pBoard,
+    p_ram_id: pRam,
+    p_cooling_id: pCooling,
+    p_psu_ids: psuIds,
+    p_riser_ids: riserIds.length ? riserIds : Array(gpuIds.length).fill('00000000-0000-0000-0000-000000000000'),
+  })
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/app/mining')
+  return { ok: true }
+}
+
 export async function prestigeRig() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
