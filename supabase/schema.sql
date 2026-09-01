@@ -1,0 +1,3 @@
+-- Production schema is already applied to the connected NEXORA Supabase project.
+-- Keep this repository entry as the source-of-truth pointer for the schema work.
+-- See the project database and supabase/seed.sql for the current seed set.
