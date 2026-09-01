@@ -1,19 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { requireAdminIdentity } from '@/lib/admin-auth'
 
 const TOKENS = new Set(['USDC', 'USDT', 'USDM'])
 const STATUSES = new Set(['draft', 'active', 'paused', 'completed', 'expired'])
-
-async function requireRole(roles: string[]) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Please sign in.')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-  if (!profile?.role || !roles.includes(profile.role)) throw new Error('Not authorized.')
-  return supabase
-}
 
 function boundedInteger(value: FormDataEntryValue | null, min: number, max: number) {
   const parsed = Number(value ?? 0)
@@ -22,7 +14,7 @@ function boundedInteger(value: FormDataEntryValue | null, min: number, max: numb
 }
 
 export async function createOpportunity(formData: FormData) {
-  const supabase = await requireRole(['admin', 'super_admin', 'content_manager'])
+  const admin = await requireAdminIdentity(['admin', 'super_admin', 'content_manager'])
   const sponsorName = String(formData.get('sponsorName') ?? '').trim()
   const title = String(formData.get('title') ?? '').trim()
   const description = String(formData.get('description') ?? '').trim()
@@ -34,31 +26,34 @@ export async function createOpportunity(formData: FormData) {
   if (!sponsorName || sponsorName.length > 120 || !title || title.length > 160 || !description || description.length > 5000) throw new Error('Invalid opportunity fields.')
   if (!TOKENS.has(token)) throw new Error('Unsupported token.')
 
-  const result = await supabase.rpc('admin_create_opportunity', {
-    p_sponsor_name: sponsorName,
-    p_title: title,
-    p_description: description,
-    p_reward_amount: rewardAmount,
-    p_token: token,
-    p_duration_minutes: durationMinutes,
-    p_budget_remaining: budgetRemaining,
-  })
-  if (result.error) throw new Error(result.error.message)
+  const db = createAdminClient()
+  const { data, error } = await db.from('opportunities').insert({
+    sponsor_name: sponsorName,
+    title,
+    description,
+    reward_amount: rewardAmount,
+    token,
+    duration_minutes: durationMinutes,
+    budget_remaining: budgetRemaining,
+    status: 'draft',
+  }).select('id').single()
+  if (error) throw new Error(error.message)
+
+  await db.from('audit_logs').insert({ actor_id: null, actor_type: 'manual_admin', action: 'opportunity.create', target_type: 'opportunity', target_id: data.id, metadata: { admin_username: admin.username } })
   revalidatePath('/admin/opportunities')
   revalidatePath('/admin')
 }
 
 export async function setOpportunityStatus(formData: FormData) {
-  const supabase = await requireRole(['admin', 'super_admin', 'content_manager'])
+  const admin = await requireAdminIdentity(['admin', 'super_admin', 'content_manager'])
   const opportunityId = String(formData.get('opportunityId') ?? '').trim()
   const status = String(formData.get('status') ?? '').trim().toLowerCase()
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(opportunityId) || !STATUSES.has(status)) throw new Error('Invalid opportunity update.')
 
-  const result = await supabase.rpc('admin_set_opportunity_status', {
-    p_opportunity_id: opportunityId,
-    p_status: status,
-  })
-  if (result.error) throw new Error(result.error.message)
+  const db = createAdminClient()
+  const { error } = await db.from('opportunities').update({ status }).eq('id', opportunityId)
+  if (error) throw new Error(error.message)
+  await db.from('audit_logs').insert({ actor_id: null, actor_type: 'manual_admin', action: `opportunity.${status}`, target_type: 'opportunity', target_id: opportunityId, metadata: { admin_username: admin.username } })
   revalidatePath('/admin/opportunities')
   revalidatePath('/admin')
 }
