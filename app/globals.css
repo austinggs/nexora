@@ -50,6 +50,10 @@ h1 { margin:5px 0 0; font-size:clamp(26px,4vw,42px); letter-spacing:-.04em; }
 .btn:hover:not(:disabled) { filter:brightness(1.08); transform:translateY(-1px); }
 .btn.secondary { background:rgba(255,255,255,.07); border:1px solid var(--border); }
 .icon-btn { width:42px; height:42px; padding:0; }
+.input { width:100%; border:1px solid var(--border); background:rgba(255,255,255,.05); color:var(--text); border-radius:12px; padding:12px 13px; outline:none; }
+.input::placeholder { color:rgba(255,255,255,.35); }
+.input:focus { border-color:rgba(118,103,255,.8); box-shadow:0 0 0 4px rgba(118,103,255,.12); }
+.input option { background:#111321; color:var(--text); }
 .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:18px 0; }
 .stat { padding:18px; }
 .stat .value { margin-top:8px; font-size:24px; font-weight:800; letter-spacing:-.04em; }
@@ -70,6 +74,10 @@ h1 { margin:5px 0 0; font-size:clamp(26px,4vw,42px); letter-spacing:-.04em; }
 .mining-card { margin-top:18px; padding:22px; background:linear-gradient(145deg,rgba(118,103,255,.12),rgba(50,214,177,.05)); }
 .mining-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
 .mining-stat { padding:14px; border-radius:16px; background:rgba(0,0,0,.2); border:1px solid var(--border); }
+.mining-controls { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+.mining-summary { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.mining-summary span { display:inline-flex; align-items:center; gap:5px; padding:8px 10px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.035); color:var(--muted); font-size:11px; }
+.mining-summary strong { color:var(--text); }
 .meter { height:7px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:10px; }
 .meter > span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--accent),var(--accent-2)); transition:width .35s ease; }
 .mobile-nav { display:none; }
@@ -142,6 +150,8 @@ h1 { margin:5px 0 0; font-size:clamp(26px,4vw,42px); letter-spacing:-.04em; }
   .hero-actions .btn { flex:1 1 180px; }
   .section-head { align-items:flex-start; }
   .opp { align-items:flex-start; }
+  .mining-controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .mining-controls form, .mining-controls .btn { width:100%; }
   .os-topmeta span:first-child { display:none; }
   .os-shortcuts { grid-template-columns:repeat(4,1fr); width:auto; right:14px; gap:4px; }
   .os-window { left:10px !important; right:10px; width:auto !important; top:160px !important; height:calc(100% - 175px) !important; }
@@ -159,6 +169,7 @@ h1 { margin:5px 0 0; font-size:clamp(26px,4vw,42px); letter-spacing:-.04em; }
   .section { padding:16px; border-radius:18px; }
   .thread { padding:16px; }
   .mining-grid { grid-template-columns:1fr; }
+  .mining-controls { grid-template-columns:1fr; }
   .opp { gap:10px; }
   .reward { font-size:13px; }
   .os-icon span { width:36px; height:36px; }
