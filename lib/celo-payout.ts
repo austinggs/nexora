@@ -32,10 +32,16 @@ export function getPayoutAccount() {
   return privateKeyToAccount(key)
 }
 
-export async function broadcastCeloTokenTransfer(params: { token: string; amountMinorUnits: bigint; destination: string }) {
+function ledgerCentsToTokenUnits(amountCents: bigint, decimals: number) {
+  if (amountCents <= 0n) throw new Error('Payout amount must be positive.')
+  if (decimals < 2) throw new Error(`Unsupported token precision: ${decimals} decimals.`)
+  return amountCents * (10n ** BigInt(decimals - 2))
+}
+
+export async function broadcastCeloTokenTransfer(params: { token: string; amountCents: bigint; destination: string }) {
   const destination = params.destination.trim() as Address
   if (!/^0x[0-9a-fA-F]{40}$/.test(destination)) throw new Error('Invalid Celo destination address.')
-  if (params.amountMinorUnits <= 0n) throw new Error('Payout amount must be positive.')
+  if (params.amountCents <= 0n) throw new Error('Payout amount must be positive.')
 
   const rpc = env('CELO_RPC_URL')
   const network = chain()
@@ -43,12 +49,15 @@ export async function broadcastCeloTokenTransfer(params: { token: string; amount
   const wallet = createWalletClient({ account, chain: network, transport: http(rpc) })
   const publicClient = createPublicClient({ chain: network, transport: http(rpc) })
   const contract = getContract({ address: tokenAddress(params.token), abi: ERC20_ABI, client: { public: publicClient, wallet } })
-  const decimals = await contract.read.decimals()
-  const txHash = await contract.write.transfer([destination, params.amountMinorUnits], { account })
-  return { txHash: txHash as Hash, decimals: Number(decimals), chainId: network.id, payoutWallet: account.address }
+  const decimals = Number(await contract.read.decimals())
+  const tokenUnits = ledgerCentsToTokenUnits(params.amountCents, decimals)
+  const payoutBalance = await contract.read.balanceOf([account.address])
+  if (payoutBalance < tokenUnits) throw new Error(`Insufficient ${params.token.toUpperCase()} balance in the NEXORA payout wallet.`)
+  const txHash = await contract.write.transfer([destination, tokenUnits], { account })
+  return { txHash: txHash as Hash, decimals, tokenUnits, chainId: network.id, payoutWallet: account.address }
 }
 
-export async function confirmCeloTokenTransfer(params: { txHash: Hash; token: string; destination: string; expectedAmountMinorUnits: bigint }) {
+export async function confirmCeloTokenTransfer(params: { txHash: Hash; token: string; destination: string; amountCents: bigint }) {
   const rpc = env('CELO_RPC_URL')
   const network = chain()
   const destination = params.destination.toLowerCase()
@@ -57,11 +66,13 @@ export async function confirmCeloTokenTransfer(params: { txHash: Hash; token: st
   const receipt = await publicClient.waitForTransactionReceipt({ hash: params.txHash, confirmations: 1 })
   if (receipt.status !== 'success') throw new Error('Celo transaction failed.')
   const logs = parseEventLogs({ abi: ERC20_ABI, logs: receipt.logs, eventName: 'Transfer', strict: false })
+  const decimals = Number(await publicClient.readContract({ address: tokenAddress(params.token), abi: ERC20_ABI, functionName: 'decimals' }))
+  const expectedTokenUnits = ledgerCentsToTokenUnits(params.amountCents, decimals)
   const transfer = logs.find((event) => {
     const address = String(event.address).toLowerCase()
     const args = event.args as { to?: Address; value?: bigint }
-    return address === token && String(args.to ?? '').toLowerCase() === destination && args.value === params.expectedAmountMinorUnits
+    return address === token && String(args.to ?? '').toLowerCase() === destination && args.value === expectedTokenUnits
   })
   if (!transfer) throw new Error('Transaction receipt does not contain the expected token transfer.')
-  return { status: receipt.status, blockNumber: receipt.blockNumber, chainId: network.id }
+  return { status: receipt.status, blockNumber: receipt.blockNumber, chainId: network.id, decimals, tokenUnits: expectedTokenUnits }
 }
