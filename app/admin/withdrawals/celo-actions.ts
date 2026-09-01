@@ -18,9 +18,10 @@ export async function broadcastWithdrawal(formData: FormData) {
   if (!withdrawal) throw new Error('Withdrawal not found.')
   if (withdrawal.status !== 'pending') throw new Error(`Withdrawal is already ${withdrawal.status}.`)
 
-  const { txHash } = await broadcastCeloTokenTransfer({ token: withdrawal.token, amountMinorUnits: BigInt(withdrawal.amount), destination: withdrawal.wallet_address })
-  const { error } = await db.rpc('admin_record_withdrawal_result', { p_withdrawal_id: withdrawalId, p_status: 'processing', p_tx_hash: txHash, p_failure_reason: null, p_admin_username: admin.username })
+  const { txHash, decimals, tokenUnits } = await broadcastCeloTokenTransfer({ token: withdrawal.token, amountCents: BigInt(withdrawal.amount), destination: withdrawal.wallet_address })
+  const { error } = await db.rpc('admin_record_withdrawal_result', { p_withdrawal_id: withdrawalId, p_status: 'processing', p_tx_hash: txHash, p_failure_reason: null, p_admin_username: admin.username, })
   if (error) throw new Error(error.message)
+  await db.from('audit_logs').insert({ actor_id: admin.id, actor_type: 'admin', action: 'withdrawal.broadcast', target_type: 'withdrawal', target_id: withdrawalId, metadata: { admin_username: admin.username, decimals, token_units: tokenUnits.toString(), chain: 'celo' } })
   revalidatePath('/admin/withdrawals'); revalidatePath('/admin')
 }
 
@@ -33,7 +34,7 @@ export async function confirmWithdrawal(formData: FormData) {
   if (!withdrawal) throw new Error('Withdrawal not found.')
   if (withdrawal.status !== 'processing') throw new Error('Withdrawal must be processing before confirmation.')
   if (!withdrawal.provider_reference || !/^0x[0-9a-fA-F]{64}$/.test(withdrawal.provider_reference)) throw new Error('No valid Celo transaction hash is recorded.')
-  await confirmCeloTokenTransfer({ txHash: withdrawal.provider_reference as `0x${string}`, token: withdrawal.token, destination: withdrawal.wallet_address, expectedAmountMinorUnits: BigInt(withdrawal.amount) })
+  await confirmCeloTokenTransfer({ txHash: withdrawal.provider_reference as `0x${string}`, token: withdrawal.token, destination: withdrawal.wallet_address, amountCents: BigInt(withdrawal.amount) })
   const { error } = await db.rpc('admin_record_withdrawal_result', { p_withdrawal_id: withdrawalId, p_status: 'completed', p_tx_hash: withdrawal.provider_reference, p_failure_reason: null, p_admin_username: admin.username })
   if (error) throw new Error(error.message)
   revalidatePath('/admin/withdrawals'); revalidatePath('/admin')
