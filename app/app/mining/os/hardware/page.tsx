@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { HardwareImage } from '../HardwareImage'
+import { HardwareImage } from '../../HardwareImage'
 import { maintainHardware } from './actions'
 
 export default async function HardwarePage() {
