@@ -24,7 +24,9 @@ export default async function WalletPage() {
   ])
 
   const balanceRows = (balances ?? []) as BalanceRow[]
-  const verifiedAddress = walletVerification?.status === 'verified' ? walletVerification.wallet_address : null
+  const verifiedAddress = walletVerification?.status === 'verified' && walletVerification.network === 'celo'
+    ? walletVerification.wallet_address
+    : null
   const pendingWithdrawals = (withdrawals ?? []).filter(item => item.status === 'pending' || item.status === 'processing')
   const entries = (transactions ?? []).map(t => ({
     id: t.id,
