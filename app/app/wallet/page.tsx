@@ -1,13 +1,30 @@
 import Link from 'next/link'
 import { ArrowDownLeft, ArrowUpRight, CheckCircle2, Clock3 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
 
-export default function WalletPage() {
+export default async function WalletPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return <main className="section"><div className="topbar"><div><div className="eyebrow">Wallet</div><h1>Your ledger.</h1></div><Link className="btn" href="/login">Sign in</Link></div></main>
+
+  const [{ data: summary }, { data: transactions }, { data: withdrawals }] = await Promise.all([
+    supabase.rpc('get_wallet_summary'),
+    supabase.from('transactions').select('id,transaction_type,category,amount,token,description,created_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(20),
+    supabase.from('withdrawals').select('id,amount,token,status,created_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(10),
+  ])
+  const wallet = Array.isArray(summary) ? summary[0] : summary
+  const available = Number(wallet?.available_amount ?? 0)
+  const pending = Number(wallet?.pending_amount ?? 0)
+  const lifetime = Number(wallet?.lifetime_earned ?? 0)
+  const entries = [
+    ...(transactions ?? []).map(t => ({ id:t.id, label:`${t.category} · ${t.description ?? ''}`.replace(/ · $/,''), amount:(t.transaction_type === 'credit' ? 1 : -1) * Number(t.amount), status:'completed', time:t.created_at })),
+    ...(withdrawals ?? []).map(w => ({ id:w.id, label:'Withdrawal', amount:-Number(w.amount), status:w.status, time:w.created_at })),
+  ].sort((a,b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0,20)
+
   return <>
     <div className="topbar"><div><div className="eyebrow">Wallet</div><h1>Your ledger.</h1></div><Link className="btn secondary" href="/app">Back</Link></div>
-    <div className="stats"><div className="glass stat"><div className="muted">Available</div><div className="value">$12.48</div><div className="muted" style={{fontSize:11}}>USDC</div></div><div className="glass stat"><div className="muted">Pending</div><div className="value">$2.10</div><div className="muted" style={{fontSize:11}}>processing</div></div><div className="glass stat"><div className="muted">Lifetime</div><div className="value">$38.20</div><div className="muted" style={{fontSize:11}}>earned</div></div></div>
-    <section className="glass section"><div className="section-head"><h3>Transactions</h3><div className="muted" style={{fontSize:11}}>Balance is derived from ledger entries</div></div>{[
-      ['Reward · Product feedback','+$0.80','completed',ArrowDownLeft],['Reward · Creator survey','+$0.45','completed',ArrowDownLeft],['Withdrawal','-$5.00','processing',ArrowUpRight],['Referral reward','+$1.20','completed',ArrowDownLeft]
-    ].map(([label,amount,status,Icon]) => <div className="opp" key={label as string}><div style={{display:'flex',gap:10,alignItems:'center'}}><div className="avatar"><Icon size={15}/></div><div><strong style={{fontSize:13}}>{label as string}</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{status === 'completed' ? <><CheckCircle2 size={12}/> completed</> : <><Clock3 size={12}/> processing</>}</div></div></div><strong className={String(amount).startsWith('+') ? 'reward' : ''}>{amount as string}</strong></div>)}</section>
-    <p className="footer-note">Financial actions are server-authoritative. Withdrawal processing will require a verified destination wallet and idempotency protection before any funds move.</p>
+    <div className="stats"><div className="glass stat"><div className="muted">Available</div><div className="value">${(available/100).toFixed(2)}</div><div className="muted" style={{fontSize:11}}>USDC · ledger derived</div></div><div className="glass stat"><div className="muted">Pending</div><div className="value">${(pending/100).toFixed(2)}</div><div className="muted" style={{fontSize:11}}>withdrawals</div></div><div className="glass stat"><div className="muted">Lifetime</div><div className="value">${(lifetime/100).toFixed(2)}</div><div className="muted" style={{fontSize:11}}>verified rewards</div></div></div>
+    <section className="glass section"><div className="section-head"><h3>Transactions</h3><div className="muted" style={{fontSize:11}}>Server-derived from immutable ledger entries</div></div>{entries.map(item => { const positive=item.amount >= 0; const Icon=positive ? ArrowDownLeft : ArrowUpRight; return <div className="opp" key={item.id}><div style={{display:'flex',gap:10,alignItems:'center'}}><div className="avatar"><Icon size={15}/></div><div><strong style={{fontSize:13}}>{item.label}</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{item.status === 'completed' ? <><CheckCircle2 size={12}/> completed</> : <><Clock3 size={12}/> {item.status}</>}</div></div></div><strong className={positive ? 'reward' : ''}>{positive ? '+' : '-'}${(Math.abs(item.amount)/100).toFixed(2)}</strong></div> })}{entries.length===0 && <div className="muted">No ledger activity yet.</div>}</section>
+    <p className="footer-note">Financial actions remain server-authoritative. Real withdrawal execution is still disabled until destination verification, idempotency and provider webhooks are configured.</p>
   </>
 }
