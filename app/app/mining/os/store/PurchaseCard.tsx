@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { HardwareImage } from '../HardwareImage'
+import { HardwareImage } from '../../HardwareImage'
 import { purchaseWithNexoraBalance } from './actions'
 
 type Props = { hardware: { id:string; category:string; brand:string; model:string; virtual_price:number; specification?:Record<string,unknown> } }
