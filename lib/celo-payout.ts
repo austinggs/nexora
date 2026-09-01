@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, getContract, type Address, type Hash } from 'viem'
+import { createPublicClient, createWalletClient, http, getContract, parseEventLogs, type Address, type Hash } from 'viem'
 import { celo, celoAlfajores } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -6,6 +6,7 @@ const ERC20_ABI = [
   { type: 'function', name: 'decimals', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint8' }] },
   { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'transfer', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { type: 'event', name: 'Transfer', anonymous: false, inputs: [{ name: 'from', type: 'address', indexed: true }, { name: 'to', type: 'address', indexed: true }, { name: 'value', type: 'uint256', indexed: false }] },
 ] as const
 
 function env(name: string) {
@@ -44,13 +45,23 @@ export async function broadcastCeloTokenTransfer(params: { token: string; amount
   const contract = getContract({ address: tokenAddress(params.token), abi: ERC20_ABI, client: { public: publicClient, wallet } })
   const decimals = await contract.read.decimals()
   const txHash = await contract.write.transfer([destination, params.amountMinorUnits], { account })
-  return { txHash: txHash as Hash, decimals: Number(decimals), chainId: network.id }
+  return { txHash: txHash as Hash, decimals: Number(decimals), chainId: network.id, payoutWallet: account.address }
 }
 
-export async function confirmCeloTransaction(txHash: Hash) {
+export async function confirmCeloTokenTransfer(params: { txHash: Hash; token: string; destination: string; expectedAmountMinorUnits: bigint }) {
   const rpc = env('CELO_RPC_URL')
   const network = chain()
+  const destination = params.destination.toLowerCase()
+  const token = tokenAddress(params.token).toLowerCase()
   const publicClient = createPublicClient({ chain: network, transport: http(rpc) })
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, confirmations: 1 })
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: params.txHash, confirmations: 1 })
+  if (receipt.status !== 'success') throw new Error('Celo transaction failed.')
+  const logs = parseEventLogs({ abi: ERC20_ABI, logs: receipt.logs, eventName: 'Transfer', strict: false })
+  const transfer = logs.find((event) => {
+    const address = String(event.address).toLowerCase()
+    const args = event.args as { to?: Address; value?: bigint }
+    return address === token && String(args.to ?? '').toLowerCase() === destination && args.value === params.expectedAmountMinorUnits
+  })
+  if (!transfer) throw new Error('Transaction receipt does not contain the expected token transfer.')
   return { status: receipt.status, blockNumber: receipt.blockNumber, chainId: network.id }
 }
