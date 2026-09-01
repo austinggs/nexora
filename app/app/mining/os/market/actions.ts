@@ -14,7 +14,7 @@ export async function convertAsset(formData: FormData) {
   if (!user) redirect('/login')
 
   const quoteId = crypto.randomUUID()
-  const { error } = await supabase.rpc('convert_mining_asset_to_nxa', {
+  const { error } = await supabase.rpc('request_mining_asset_to_nxa', {
     p_symbol: symbol,
     p_quantity: quantity,
     p_quote_id: quoteId,
