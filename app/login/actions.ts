@@ -1,40 +1,41 @@
 'use server'
 
+import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { setManualSession } from '@/lib/manual-session'
+
+function manualAlias(userId: string) {
+  const pepper = process.env.MANUAL_AUTH_PEPPER
+  if (!pepper || pepper.length < 32) return null
+  return crypto.createHash('sha256').update(`${userId.toLowerCase()}:${pepper}`).digest('hex') + '@auth.nexora.internal'
+}
 
 export async function login(formData: FormData) {
-  const supabase = await createClient()
-  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const mode = String(formData.get('mode') ?? 'email')
   const password = String(formData.get('password') ?? '')
-  if (!email || password.length < 8) redirect('/login?error=invalid_credentials')
+  const supabase = await createClient()
+
+  let email = String(formData.get('email') ?? '').trim()
+  if (mode === 'user_id') {
+    const userId = String(formData.get('userId') ?? '').trim().toLowerCase()
+    if (!/^[a-z0-9][a-z0-9._-]{3,31}$/.test(userId)) redirect('/login?mode=user_id&error=invalid_credentials')
+    const alias = manualAlias(userId)
+    if (!alias) redirect('/login?mode=user_id&error=server_configuration')
+    email = alias
+  }
+
   const { error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) redirect('/login?error=invalid_credentials')
+  if (error) redirect(`/login${mode === 'user_id' ? '?mode=user_id&' : '?'}error=invalid_credentials`)
   revalidatePath('/', 'layout')
   redirect('/app')
 }
 
-export async function manualLogin(formData: FormData) {
-  const supabase = await createClient()
-  const userId = String(formData.get('userId') ?? '').trim().toLowerCase()
-  const password = String(formData.get('password') ?? '')
-  if (!/^[a-z0-9][a-z0-9._-]{3,31}$/.test(userId) || password.length < 8) redirect('/login?error=invalid_manual_credentials')
-  const { data, error } = await supabase.rpc('verify_manual_admin_login', { p_username: userId, p_password: password })
-  const account = Array.isArray(data) ? data[0] : data
-  if (error || !account?.account_id) redirect('/login?error=invalid_manual_credentials')
-  await setManualSession(String(account.account_id))
-  revalidatePath('/', 'layout')
-  redirect(account.role === 'admin' || account.role === 'super_admin' ? '/admin' : '/app')
-}
-
 export async function signup(formData: FormData) {
   const supabase = await createClient()
-  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const email = String(formData.get('email') ?? '')
   const password = String(formData.get('password') ?? '')
-  if (!email || password.length < 8) redirect('/signup?error=invalid_signup')
   const { error } = await supabase.auth.signUp({ email, password })
-  if (error) redirect('/signup?error=signup_failed')
-  redirect('/signup?success=check_email')
+  if (error) redirect('/login?error=signup_failed')
+  redirect('/login?success=check_email')
 }
