@@ -1,0 +1,10 @@
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
+import { transitionWithdrawal } from './actions'
+
+export default async function AdminWithdrawalsPage(){
+ const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) return <></>
+ const {data:p}=await supabase.from('profiles').select('role').eq('id',user.id).maybeSingle(); if(!p?.role||!['admin','super_admin','finance_admin'].includes(p.role)) return <main className="section"><div className="glass section"><h1>Restricted.</h1><Link className="btn" href="/app">Back</Link></div></main>
+ const {data:rows}=await supabase.rpc('admin_list_withdrawals',{p_status:null})
+ return <main className="main" style={{paddingTop:32}}><div className="topbar"><div><div className="eyebrow">Admin · Finance</div><h1>Withdrawal queue.</h1></div><Link className="btn secondary" href="/admin">Back</Link></div><section className="glass section"><div className="notice">Direct Celo transfers are processed only after verification. Every state change is audited.</div><div style={{display:'grid',gap:10,marginTop:18}}>{(rows??[]).map(w=><article className="opp" key={w.id}><div style={{minWidth:0}}><strong>{(Number(w.amount)/100).toFixed(2)} {w.token}</strong><div className="muted" style={{fontSize:11,marginTop:4}}>User {w.user_id.slice(0,8)}… · {w.wallet_address}</div><div className="muted" style={{fontSize:11,marginTop:3}}>Created {new Date(w.created_at).toLocaleString()}</div></div><form action={transitionWithdrawal} style={{display:'flex',gap:6,alignItems:'center'}}><input type="hidden" name="withdrawalId" value={w.id}/><input className="input" name="providerReference" placeholder="tx hash (optional)"/><select className="input" name="status" defaultValue={w.status==='pending'?'processing':w.status}><option>processing</option><option>completed</option><option>failed</option><option>reversed</option></select><button className="btn secondary" type="submit">Apply</button></form></article>)}{(rows??[]).length===0&&<div className="muted">No withdrawals in the queue.</div>}</div></section></main>
+}
